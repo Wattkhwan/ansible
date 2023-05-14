@@ -121,6 +121,7 @@ $ echo "ansible ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ansible
 
 
 ** on controller su to ansible user and create ssh key
+$ sudo su ansible
 $ ssh-keygen -t rsa
 
 ** copy key to all ansible user from controller to host

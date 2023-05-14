@@ -1,0 +1,185 @@
+Ansible by Netzoundx Channel
+----------------------------
+Requirement
+All Ubuntu servers version 18.04 LTS
+1 x Controller machine
+4 x Nodes
+
+Pre-install 
+1.define host file (all nodes)
+
+vi /etc/hosts
+
+10.255.0.91	node01 
+10.255.0.92	node02
+10.255.0.93	node03
+10.255.0.94	node04
+
+2.check python version python --version
+3.generate ssh keygen "ssh-keygen -t rsa" at controller machine (root user)
+4.copy ssh key from root user to all nodes
+
+ssh-copy-id node01
+...
+..
+.
+
+-------------------------------------------------------------------------------
+
+# Installing Ansible on Ubuntu (Controller machine)
+1.apt install software-properties-common
+2.add-apt-repository --yes --update ppa:ansible/ansible
+3.apt update
+4.apt install -y ansible
+5.vi /etc/ansible/ansible.cg
+callback_whitelist = profile_tasks
+
+# Define the first inventory
+1.mkdir ansiblelab
+2.touch inventory.ini
+3.vi inventori.ini and define group web and db
+[web]
+node01 ansible_host=10.255.0.91 ansible_connection=ssh ansible_user=root
+node02 ansible_host=10.255.0.92 ansible_connection=ssh ansible_user=root
+node03 ansible_host=10.255.0.93 ansible_connection=ssh ansible_user=root
+
+[db]
+node04 ansible_host=10.255.0.94 ansible_connection=ssh ansible_user=root
+4.save
+5.test ping all , test ping web , test ping db
+ansible web -m ping -i inventory.ini
+
+#Define the first playbook
+1.touch playbook-update.yaml
+
+-
+  name: Test aptitude update
+  hosts: all
+  tasks:
+    - name: aptitude update
+      apt:
+       name: "*"
+       state: latest
+
+2.ansible-playbook playbook-update.yaml -i inventory.ini
+
+----------------------------------------------------------------------------------
+
+# Advance playbook : Install nginx to all webservers by index.html show text 
+"Ansible by Netzoundx channel" and install sqlite3 at database server
+
+1.touch newindex.html
+2.touch playbook-nginx-sqlite3.yaml
+
+-
+  name: Deploying nginx webserver
+  hosts: web
+  tasks:
+    - name: Install nginx latest version and start service
+      apt:
+       name: nginx
+       state: latest
+    - name: Start nginx service
+      ansible.builtin.service:
+       name: nginx
+       state: started
+    - name: Allow Uncomplicated Firewall for nginx
+      ufw:
+       rule: allow
+       port: 80
+       proto: tcp
+    - name: Copy newindex.html to public index.html
+      ansible.builtin.copy:
+       src: /root/ansiblelab/newindex.html
+       dest: /var/www/html/index.nginx-debian.html
+       follow: yes
+    - name: Reload nginx webserver
+      ansible.builtin.service:
+       name: nginx
+       state: reloaded
+
+-
+  name: Deploying sqlite3 database 
+  hosts: db
+  tasks:
+    - name: Install sqlite3 
+      apt:
+       name: sqlite3
+       state: latest
+
+2.ansible-playbook playbook-nginx-sqlite3.yaml -i inventory.ini
+
+
+
+
+
+** create user ansible and key on controller add to sudo with no passwd
+   create user ansible on host add to sudo with no passwd 
+
+$ sudo adduser ansible
+$ echo "ansible ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ansible
+
+
+** on controller su to ansible user and create ssh key
+$ ssh-keygen -t rsa
+
+** copy key to all ansible user from controller to host
+$ ssh-copy-id ansible@<Ubuntu_hostaddress>
+
+
+Install and activate the python3-argcomplete package to set up Ansible bash completion support.
+
+$ sudo apt install python3-argcomplete
+$ sudo activate-global-python-argcomplete3
+
+
+
+inventory
+## set up ssh user name and path to python3 ##
+[all:vars]
+ansible_user='ubuntu'
+ansible_become=yes
+ansible_become_method=sudo
+ansible_python_interpreter='/usr/bin/env python3'
+ 
+##########################
+## our aws server names
+## aws-ls-www-1 may be mapped using /etc/hosts or ~/.ssh/config
+## you can use ip address here too
+###########################
+###########################
+[servers]
+aws-ls-www-1
+aws-ls-www-2
+aws-ls-www-3
+aws-ls-www-4
+
+playbook
+- hosts: linux
+  become: true
+  become_user: root
+  tasks:
+    - name: Update apt repo and cache on all Debian/Ubuntu boxes
+      apt: update_cache=yes force_apt_get=yes cache_valid_time=3600
+
+    - name: Upgrade all packages on servers
+      apt: upgrade=dist force_apt_get=yes
+
+    - name: Check if a reboot is needed on all servers
+      register: reboot_required_file
+      stat: path=/var/run/reboot-required get_md5=no
+
+    - name: Reboot the box if kernel updated
+      reboot:
+        msg: "Reboot initiated by Ansible for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      when: reboot_required_file.stat.exists
+
+
+
+
+
